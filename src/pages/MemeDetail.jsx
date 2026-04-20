@@ -3,7 +3,7 @@ import { useParams } from "react-router-dom";
 import { useAuth0 } from "@auth0/auth0-react";
 import Navbar from "../components/Navbar";
 
-const API = import.meta.env.VITE_API_BASE_URL;
+const API = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
 
 /**
  * @typedef {{ id?: number|string, tag: string }} MemeTag
@@ -20,6 +20,9 @@ export default function MemeDetail() {
     const [meme, setMeme] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
+    const [author, setAuthor] = useState(null);
+    const [isFollowing, setIsFollowing] = useState(false);
+    const [followersCount, setFollowersCount] = useState(0);
 
     /** @type {[CommentItem[], Function]} */
     const [comments, setComments] = useState([]);
@@ -42,6 +45,27 @@ export default function MemeDetail() {
                 /** @type {Meme} */
                 const data = await res.json();
                 setMeme(data);
+
+                // 작성자 정보 및 팔로우 상태 불러오기
+                if (data.userId) {
+                    const userRes = await fetch(`${API}/api/users/${data.userId}`);
+                    if (userRes.ok) {
+                        const userData = await userRes.json();
+                        setAuthor(userData);
+                    }
+
+                    if (isAuthenticated) {
+                        const token = await getAccessTokenSilently();
+                        const followRes = await fetch(`${API}/api/follows/status?userId=${data.userId}`, {
+                            headers: { Authorization: `Bearer ${token}` },
+                        });
+                        if (followRes.ok) {
+                            const followData = await followRes.json();
+                            setIsFollowing(Boolean(followData.followingStatus));
+                            setFollowersCount(Number(followData.followers ?? 0));
+                        }
+                    }
+                }
             } catch (err) {
                 console.error("밈 상세 조회 실패:", err);
                 setError("밈 정보를 불러오는 중 문제가 발생했어요.");
@@ -107,6 +131,28 @@ export default function MemeDetail() {
 
         void loadSavedStatus();
     }, [memeId, isAuthenticated, getAccessTokenSilently]);
+
+    const handleFollowToggle = async () => {
+        if (!isAuthenticated) {
+            alert("로그인 후 팔로우할 수 있어요!");
+            return;
+        }
+        if (!meme?.userId) return;
+
+        try {
+            const token = await getAccessTokenSilently();
+            const res = await fetch(`${API}/api/follows/toggle?userId=${meme.userId}`, {
+                method: "POST",
+                headers: { Authorization: `Bearer ${token}` },
+            });
+            if (!res.ok) return;
+            const data = await res.json();
+            setIsFollowing(Boolean(data.followingStatus));
+            setFollowersCount(Number(data.followers ?? 0));
+        } catch (err) {
+            console.error("팔로우 실패:", err);
+        }
+    };
 
     const handleCommentSubmit = async (event) => {
         event.preventDefault();
@@ -216,6 +262,22 @@ export default function MemeDetail() {
 
                     <div className="detailInfo">
                         <h1 className="detailTitle">{meme.title}</h1>
+
+                        {author && (
+                            <div className="detailAuthorRow">
+                                <div className="detailAuthorAvatar" />
+                                <span className="detailAuthorName">
+                                    {author.nickname || author.email?.split("@")[0] || `user ${author.id}`}
+                                </span>
+                                <button
+                                    type="button"
+                                    className={`detailFollowBtn${isFollowing ? " isFollowing" : ""}`}
+                                    onClick={handleFollowToggle}
+                                >
+                                    {isFollowing ? "팔로잉" : "팔로우"}
+                                </button>
+                            </div>
+                        )}
 
                         <button
                             type="button"

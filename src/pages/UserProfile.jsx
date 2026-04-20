@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { useAuth0 } from "@auth0/auth0-react";
 import Navbar from "../components/Navbar";
 
-const API = import.meta.env.VITE_API_BASE_URL;
+const API = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
 
 /**
  * @typedef {{ id: number|string, nickname?: string, email?: string }} ProfileUser
@@ -97,9 +97,9 @@ export default function UserProfile() {
   useEffect(() => {
     const fetchProfileData = async () => {
       try {
-        const allUsersRes = await fetch(`${API}/api/users`);
-        if (!allUsersRes.ok) {
-          console.error("유저 목록을 불러오지 못했습니다.");
+        const userRes = await fetch(`${API}/api/users/${userId}`);
+        if (!userRes.ok) {
+          console.error("유저를 불러오지 못했습니다.");
           setProfile(null);
           setUploadedMemes([]);
           setSavedMemes([]);
@@ -110,12 +110,7 @@ export default function UserProfile() {
           return;
         }
 
-        /** @type {ProfileUser[]|unknown} */
-        const allUsers = await allUsersRes.json();
-
-        const foundUser = Array.isArray(allUsers)
-            ? allUsers.find((user) => String(user.id) === String(userId))
-            : null;
+        const foundUser = await userRes.json();
 
         if (!foundUser) {
           setProfile(null);
@@ -293,7 +288,15 @@ export default function UserProfile() {
         <main className="myPageContent">
           <section className="profileHero">
             <div className="profileIdentity">
-              <div className="profileAvatar" aria-hidden="true" />
+              {profile.profileImagePath ? (
+                  <img
+                      src={`${API}/uploads/${profile.profileImagePath}`}
+                      alt="프로필"
+                      className="profileAvatarImg"
+                  />
+              ) : (
+                  <div className="profileAvatar" aria-hidden="true" />
+              )}
 
               <div className="profileCopy">
                 <h1>{profile.nickname || profile.email?.split("@")[0] || `user ${profile.id}`}</h1>

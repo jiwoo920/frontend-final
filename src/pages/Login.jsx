@@ -2,6 +2,8 @@ import { useEffect } from "react";
 import { useLocation, useNavigate, Link } from "react-router-dom";
 import { useAuth0 } from "@auth0/auth0-react";
 
+const API = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
+
 export default function Login() {
     const {
         loginWithRedirect,
@@ -24,7 +26,7 @@ export default function Login() {
                 const token = await getAccessTokenSilently();
                 const nickname = user.email ? user.email.split("@")[0] : "user";
 
-                await fetch("http://localhost:8080/api/users/sync", {
+                await fetch(`${API}/api/users/sync`, {
                     method: "POST",
                     headers: {
                         Authorization: `Bearer ${token}`,

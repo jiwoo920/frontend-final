@@ -4,7 +4,7 @@ import Navbar from "../components/Navbar";
 import MemeCard from "../components/MemeCard";
 import { FIXED_MEME_TAGS, sanitizeKoreanTagInput } from "../tagData";
 
-const API = import.meta.env.VITE_API_BASE_URL;
+const API = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
 
 function normalizeText(value) {
   return String(value ?? "").trim().toLowerCase();

@@ -74,42 +74,22 @@ export default function Home() {
     }, []);
 
     useEffect(() => {
-        if (!isAuthenticated) {
-            setLikedIds([]);
-            return;
-        }
+        if (!isAuthenticated) return;
 
-        let isCanceled = false;
-
-        const loadLikedMemes = async () => {
+        const fetchLikedIds = async () => {
             try {
                 const token = await getAccessTokenSilently();
                 const res = await fetch(`${API}/api/likes/my`, {
                     headers: { Authorization: `Bearer ${token}` },
                 });
-
-                if (!res.ok) {
-                    setLikedIds([]);
-                    return;
-                }
-
                 const data = await res.json();
-                if (!isCanceled) {
-                    setLikedIds(Array.isArray(data) ? data.map((meme) => meme.id) : []);
-                }
+                setLikedIds(Array.isArray(data) ? data.map((m) => m.id) : []);
             } catch (error) {
                 console.error("좋아요 목록 불러오기 실패:", error);
-                if (!isCanceled) {
-                    setLikedIds([]);
-                }
             }
         };
 
-        loadLikedMemes();
-
-        return () => {
-            isCanceled = true;
-        };
+        fetchLikedIds();
     }, [isAuthenticated, getAccessTokenSilently]);
 
     const filteredTrendingMemes = useMemo(() => {
@@ -163,29 +143,11 @@ export default function Home() {
                 method: "POST",
                 headers: { Authorization: `Bearer ${token}` },
             });
-
-            if (!res.ok) {
-                alert("좋아요 처리에 실패했어요.");
-                return;
-            }
-
             const data = await res.json();
 
             setLikedIds((prev) =>
-                data.liked
-                    ? [...new Set([...prev, memeId])]
-                    : prev.filter((id) => id !== memeId)
+                data.liked ? [...prev, memeId] : prev.filter((id) => id !== memeId)
             );
-
-            const applyLikeCount = (memes) =>
-                memes.map((meme) =>
-                    meme.id === memeId && typeof data.likeCount === "number"
-                        ? { ...meme, likeCount: data.likeCount }
-                        : meme
-                );
-
-            setTrendingMemes(applyLikeCount);
-            setAllMemes(applyLikeCount);
         } catch (error) {
             console.error("좋아요 실패:", error);
         }

@@ -1,7 +1,8 @@
-import { useRef } from "react";
+import { useRef, useEffect, useState } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useAuth0 } from "@auth0/auth0-react";
-import { useProfilePreferences } from "../profilePreferences";
+
+const API = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
 
 function SearchIcon() {
     return (
@@ -12,34 +13,58 @@ function SearchIcon() {
     );
 }
 
+function BellIcon() {
+    return (
+        <svg viewBox="0 0 24 24" className="navIcon bellIcon" aria-hidden="true" focusable="false">
+            <path d="M8 17.5h8" />
+            <path d="M9 18a3 3 0 0 0 6 0" />
+            <path d="M18 16V11a6 6 0 1 0-12 0v5l-1.2 1.6h14.4Z" />
+        </svg>
+    );
+}
+
 export default function Navbar() {
     const location = useLocation();
     const navigate = useNavigate();
     const searchInputRef = useRef(null);
-    const { isAuthenticated, user, logout } = useAuth0();
-    const profilePreferences = useProfilePreferences(user);
+    const { isAuthenticated, user, loginWithRedirect, logout, getAccessTokenSilently } = useAuth0();
+    const [dbNickname, setDbNickname] = useState(null);
+    const returnTo = new URL(import.meta.env.BASE_URL || "/", window.location.origin).toString();
 
-    const isAuthPage =
-        location.pathname === "/login" || location.pathname === "/signup";
-
-    const nickname = profilePreferences.nickname || (user?.email ? user.email.split("@")[0] : "");
+    const nickname = dbNickname || (user?.email ? user.email.split("@")[0] : "");
 
     const searchQueryFromUrl =
         location.pathname === "/search"
             ? new URLSearchParams(location.search).get("q") ?? ""
             : "";
 
+    useEffect(() => {
+        if (!isAuthenticated) return;
+        const fetchNickname = async () => {
+            try {
+                const token = await getAccessTokenSilently();
+                const res = await fetch(`${API}/api/users/me`, {
+                    headers: { Authorization: `Bearer ${token}` },
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.nickname) setDbNickname(data.nickname);
+                }
+            } catch (err) {
+                console.error("닉네임 불러오기 실패:", err);
+            }
+        };
+        fetchNickname();
+    }, [isAuthenticated, getAccessTokenSilently]);
+
     const handleSearchSubmit = (event) => {
         event.preventDefault();
-
         const rawValue = searchInputRef.current?.value ?? "";
         const nextQuery = rawValue.trim();
-
         if (!nextQuery) {
             navigate("/search");
             return;
         }
-
         navigate(`/search?q=${encodeURIComponent(nextQuery)}`);
     };
 
@@ -68,41 +93,41 @@ export default function Navbar() {
                 </form>
             </div>
 
-            {!isAuthPage && (
-                <div className="topRight">
-                    {isAuthenticated ? (
-                        <>
-                            <NavLink
-                                to="/mypage"
-                                className={({ isActive }) =>
-                                    `profileLink${isActive ? " profileLinkActive" : ""}`
-                                }
-                            >
-                                {nickname}님
-                            </NavLink>
+            <div className="topRight">
+                <button type="button" className="notificationBtn" aria-label="알림">
+                    <BellIcon />
+                </button>
 
-                            <button
-                                type="button"
-                                className="forgotBtn"
-                                onClick={() =>
-                                    logout({
-                                        logoutParams: {
-                                            returnTo: `${window.location.origin}/login`,
-                                        },
-                                    })
-                                }
-                                style={{ marginLeft: "8px" }}
-                            >
-                                로그아웃
-                            </button>
-                        </>
-                    ) : (
-                        <NavLink to="/login" className="profileLink">
-                            로그인
+                {isAuthenticated ? (
+                    <>
+                        <NavLink
+                            to="/mypage"
+                            className={({ isActive }) =>
+                                `profileLink${isActive ? " profileLinkActive" : ""}`
+                            }
+                        >
+                            {nickname}님
                         </NavLink>
-                    )}
-                </div>
-            )}
+                        <button
+                            type="button"
+                            className="forgotBtn"
+                            onClick={() =>
+                                logout({ logoutParams: { returnTo } })
+                            }
+                        >
+                            로그아웃
+                        </button>
+                    </>
+                ) : (
+                    <button
+                        type="button"
+                        className="profileLink"
+                        onClick={() => loginWithRedirect()}
+                    >
+                        로그인
+                    </button>
+                )}
+            </div>
         </header>
     );
 }

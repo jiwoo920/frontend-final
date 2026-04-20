@@ -27,18 +27,17 @@ function PlusIcon() {
 
 function TrashIcon() {
     return (
-        <svg viewBox="0 0 24 24" className="deleteIcon" aria-hidden="true" focusable="false">
-            <path d="M8 8v10" />
-            <path d="M12 8v10" />
-            <path d="M16 8v10" />
-            <path d="M5 5h14" />
-            <path d="M9 5V3h6v2" />
-            <path d="M7 5l1 16h8l1-16" />
+        <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="3 6 5 6 21 6" />
+            <path d="M19 6l-1 14H6L5 6" />
+            <path d="M10 11v6" />
+            <path d="M14 11v6" />
+            <path d="M9 6V4h6v2" />
         </svg>
     );
 }
 
-function ProfileMemeCard({ meme, liked, onToggle, onDelete, showDelete = false }) {
+function ProfileMemeCard({ meme, liked, onToggle, onDelete }) {
     return (
         <article className="profileMemeCard">
             <div className="profileThumbBox">
@@ -57,13 +56,12 @@ function ProfileMemeCard({ meme, liked, onToggle, onDelete, showDelete = false }
                 >
                     <HeartIcon />
                 </button>
-                {showDelete && (
+                {onDelete && (
                     <button
                         type="button"
                         className="profileDeleteBtn"
                         onClick={() => onDelete(meme.id)}
-                        aria-label={`${meme.title || "밈"} 삭제`}
-                        title="삭제"
+                        aria-label="밈 삭제"
                     >
                         <TrashIcon />
                     </button>
@@ -77,12 +75,10 @@ export default function MyPage() {
     const [searchParams] = useSearchParams();
     const { getAccessTokenSilently, isAuthenticated, isLoading } = useAuth0();
     const [activeFilter, setActiveFilter] = useState(boardFilters[0]);
-    const [savedMemes, setSavedMemes] = useState([]);
     const [likedMemes, setLikedMemes] = useState([]);
     const [uploadedMemes, setUploadedMemes] = useState([]);
     const [likedIds, setLikedIds] = useState([]);
-    const activeTab = searchParams.get("tab");
-    const activeBoard = activeTab === "upload" || activeTab === "liked" ? activeTab : "saved";
+    const activeBoard = searchParams.get("tab") === "upload" ? "upload" : "saved";
 
     useEffect(() => {
         if (isLoading || !isAuthenticated) return;
@@ -91,10 +87,7 @@ export default function MyPage() {
             try {
                 const token = await getAccessTokenSilently();
 
-                const [savedRes, likedRes, uploadedRes] = await Promise.all([
-                    fetch(`${API}/api/saved/my`, {
-                        headers: { Authorization: `Bearer ${token}` },
-                    }),
+                const [likedRes, uploadedRes] = await Promise.all([
                     fetch(`${API}/api/likes/my`, {
                         headers: { Authorization: `Bearer ${token}` },
                     }),
@@ -103,11 +96,9 @@ export default function MyPage() {
                     }),
                 ]);
 
-                const savedData = await savedRes.json();
                 const likedData = await likedRes.json();
                 const uploadedData = await uploadedRes.json();
 
-                setSavedMemes(Array.isArray(savedData) ? savedData : []);
                 setLikedMemes(Array.isArray(likedData) ? likedData : []);
                 setLikedIds(Array.isArray(likedData) ? likedData.map((m) => m.id) : []);
                 setUploadedMemes(Array.isArray(uploadedData) ? uploadedData : []);
@@ -126,65 +117,36 @@ export default function MyPage() {
                 method: "POST",
                 headers: { Authorization: `Bearer ${token}` },
             });
-
-            if (!res.ok) {
-                alert("좋아요 처리에 실패했어요.");
-                return;
-            }
-
             const data = await res.json();
 
             setLikedIds((prev) =>
-                data.liked
-                    ? [...new Set([...prev, memeId])]
-                    : prev.filter((id) => id !== memeId)
+                data.liked ? [...prev, memeId] : prev.filter((id) => id !== memeId)
             );
 
-            if (!data.liked) {
-                setLikedMemes((prev) => prev.filter((m) => m.id !== memeId));
-            } else {
-                const likedMeme =
-                    savedMemes.find((meme) => meme.id === memeId) ||
-                    uploadedMemes.find((meme) => meme.id === memeId);
-
-                if (likedMeme) {
-                    setLikedMemes((prev) =>
-                        prev.some((meme) => meme.id === memeId) ? prev : [...prev, likedMeme]
-                    );
+            if (data.liked) {
+                const meme = uploadedMemes.find((m) => m.id === memeId);
+                if (meme) {
+                    setLikedMemes((prev) => [...prev, meme]);
                 }
+            } else {
+                setLikedMemes((prev) => prev.filter((m) => m.id !== memeId));
             }
         } catch (error) {
             console.error("좋아요 실패:", error);
         }
     };
 
-    const deleteUploadedMeme = async (memeId) => {
-        const targetMeme = uploadedMemes.find((meme) => meme.id === memeId);
-        const shouldDelete = window.confirm(
-            `${targetMeme?.title || "이 밈"}을 삭제할까요?`
-        );
-
-        if (!shouldDelete) return;
-
+    const deleteMeme = async (memeId) => {
+        if (!window.confirm("정말 삭제할까요?")) return;
         try {
             const token = await getAccessTokenSilently();
-            const res = await fetch(`${API}/api/memes/${memeId}`, {
+            await fetch(`${API}/api/memes/${memeId}`, {
                 method: "DELETE",
                 headers: { Authorization: `Bearer ${token}` },
             });
-
-            if (!res.ok) {
-                alert("삭제에 실패했어요.");
-                return;
-            }
-
-            setUploadedMemes((prev) => prev.filter((meme) => meme.id !== memeId));
-            setSavedMemes((prev) => prev.filter((meme) => meme.id !== memeId));
-            setLikedMemes((prev) => prev.filter((meme) => meme.id !== memeId));
-            setLikedIds((prev) => prev.filter((id) => id !== memeId));
+            setUploadedMemes((prev) => prev.filter((m) => m.id !== memeId));
         } catch (error) {
-            console.error("밈 삭제 실패:", error);
-            alert("삭제에 실패했어요.");
+            console.error("삭제 실패:", error);
         }
     };
 
@@ -196,8 +158,7 @@ export default function MyPage() {
             <main className="myPageContent">
                 <MyPageHero
                     activeBoard={activeBoard}
-                    savedCount={savedMemes.length}
-                    likedCount={likedMemes.length}
+                    savedCount={likedMemes.length}
                     uploadCount={uploadedMemes.length}
                 />
 
@@ -217,8 +178,8 @@ export default function MyPage() {
                         </section>
 
                         <section className="myMemeGrid">
-                            {savedMemes.length > 0 ? (
-                                savedMemes.map((meme) => (
+                            {likedMemes.length > 0 ? (
+                                likedMemes.map((meme) => (
                                     <ProfileMemeCard
                                         key={meme.id}
                                         meme={meme}
@@ -227,25 +188,10 @@ export default function MyPage() {
                                     />
                                 ))
                             ) : (
-                                <p className="myBoardEmptyState">아직 저장한 밈이 없어요!</p>
+                                <p className="myBoardEmptyState">아직 좋아요한 밈이 없어요!</p>
                             )}
                         </section>
                     </>
-                ) : activeBoard === "liked" ? (
-                    <section className="myMemeGrid">
-                        {likedMemes.length > 0 ? (
-                            likedMemes.map((meme) => (
-                                <ProfileMemeCard
-                                    key={meme.id}
-                                    meme={meme}
-                                    liked={likedIds.includes(meme.id)}
-                                    onToggle={toggleLike}
-                                />
-                            ))
-                        ) : (
-                            <p className="myBoardEmptyState">아직 좋아요한 밈이 없어요!</p>
-                        )}
-                    </section>
                 ) : (
                     <>
                         <section className="uploadHeaderRow">
@@ -264,8 +210,7 @@ export default function MyPage() {
                                         meme={meme}
                                         liked={likedIds.includes(meme.id)}
                                         onToggle={toggleLike}
-                                        onDelete={deleteUploadedMeme}
-                                        showDelete={true}
+                                        onDelete={deleteMeme}
                                     />
                                 ))
                             ) : (

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-const PROFILE_STORAGE_KEY = "meme-library-final-profile-preferences";
+const PROFILE_STORAGE_KEY = "meme-library-profile-preferences";
 const PROFILE_UPDATED_EVENT = "meme-library-profile-preferences-updated";
 
 function canUseStorage() {
